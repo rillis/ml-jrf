@@ -1,0 +1,16 @@
+# mercado livre
+APP_ID = 0
+CONTA = ''
+SECRET_KEY = ''
+SELLER_ID = 0
+
+# connection mysql
+DB_HOST = "..."
+DB_PORT = 0
+DB_USER = ""
+DB_PASSWORD = ""
+DB_DATABASE = ""
+
+# webhook
+WEBHOOK_URL = 'https://discord.com/api/webhooks/...'
+WEBHOOK_URL_DEBUG = 'https://discord.com/api/webhooks/...'

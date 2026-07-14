@@ -1,0 +1,7 @@
+/cfg/private.py
+__pycache__/
+*.py[cod]
+/*.txt
+*.json
+*.log
+*.sh
