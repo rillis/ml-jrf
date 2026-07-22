@@ -34,10 +34,10 @@ def block_suspicious_requests():
 def home():
     if request.method == "POST":
         id = str(uuid.uuid4())[:8]
-        if config.DEBUG: print(f'[{datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%d %H:%M:%S")}] POST [{id}] RECEBIDO -------------------')
+        if config.DEBUG: print(f'{config.BLUE}[{datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%d %H:%M:%S")}] POST [{id}] RECEBIDO -------------------{config.RESET}')
         response = main_handler.handle(request)
-        if config.DEBUG: print(f'Result: {response[1]} - {response[0]}')
-        if config.DEBUG: print(f'[{datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%d %H:%M:%S")}] POST [{id}] FIM TRATAMENTO -------------')
+        if config.DEBUG: print(f'{config.GREEN if response[0]=="OK" else config.RED}Result: {response[1]} - {response[0]}{config.RESET}')
+        if config.DEBUG: print(f'{config.BLUE}[{datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%d %H:%M:%S")}] POST [{id}] FIM TRATAMENTO -------------{config.RESET}')
         return response
     return {"status": "Wrong method"}, 405
 

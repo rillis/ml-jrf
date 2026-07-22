@@ -9,7 +9,7 @@ def handle(data):
 
     if data.get('debug', False) and config.DEBUG: print('Warning: Debug = True no post, pulando verificação do should_run')
     if data.get('debug', False) == False and lib.should_run(res) == False:
-        return {'Status': 'OK'}, 200
+        return {'Status': 'OK - Skip'}, 200
     
     with discord.DiscordWebhook() as wh:
         wh.send(discord_format(res))
