@@ -1,6 +1,6 @@
 
 from cfg import config
-from utils import discord, ml, lib
+from utils import discord, ml, lib, db
 
 from datetime import datetime
 from zoneinfo import ZoneInfo
@@ -32,6 +32,12 @@ def is_new(det): #verifica se é novo ou se foi atualizado
     dt = datetime.fromisoformat(det['date_created'])
     return dt.date() == datetime.now(ZoneInfo("America/Sao_Paulo")).date()
 
+def save_on_db(items, order_type, res_id, total_value):
+    with db.DBConnection() as conn:
+        sql = "INSERT INTO orders_v2 (items, order_type, post_time, res_id, total_value) VALUES (%s, %s, now(), %s, %s)"
+        val = (str(items), str(order_type), str(res_id), float(total_value))
+        conn.execute(sql, val=val)
+
 def discord_format(res):
     det = ml.get(f'https://api.mercadolibre.com{res}') # detalhado
 
@@ -55,6 +61,15 @@ def discord_format(res):
     emoji = f"(Missing Emoji: {ship['logistic_type']})"
     if ship['logistic_type'] in config.EMOJI_SHIP: emoji = config.EMOJI_SHIP[ship['logistic_type']]
     pretext += f" {emoji}"
+
+
+    #saving
+    items_db = []
+    total_value_db = 0
+    for order in det['order_items'][:9]:
+        items_db.append(f"{order['quantity']}x {order['item']['seller_sku']}")
+        total_value_db += order['unit_price']*order['quantity']    
+    save_on_db(items_db, venda_type, res, total_value_db)
 
     return {
         "content": f"{pretext} `{det['id']}`\n**R$ {det['total_amount']:,.2f}**\n{datetime.fromisoformat(det['date_created']).strftime('%d/%m/%Y %H:%M')}",

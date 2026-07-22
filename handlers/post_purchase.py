@@ -1,5 +1,5 @@
 from cfg import config
-from utils import discord, ml, lib
+from utils import discord, ml, lib, db
 from handlers import debug
 
 from datetime import datetime
@@ -14,6 +14,12 @@ def handle(data):
     if result_discord is None:
         return {'Status': 'Wrong Pattern or should not run (PP)'}, 400
     return {'Status': 'OK'}, 200
+
+def save_on_db(order_id, reason, res_id, type_db):
+    with db.DBConnection() as conn:
+        sql = "INSERT INTO post_purchase (order_id, post_time, reason, res_id, type) VALUES (%s, now(), %s, %s, %s)"
+        val = (str(order_id), str(reason), str(res_id), str(type_db))
+        conn.execute(sql, val=val)
 
 def discord_format(res_ori, data):
     det = ml.get(f"https://api.mercadolibre.com{res_ori}")
@@ -53,6 +59,9 @@ def discord_format(res_ori, data):
         elif 'PNR' in det['reason_id']: reason = 'Produto Não Recebido'
         elif 'CS' in det['reason_id']: reason = 'Compra Cancelada'
         else: reason = f"{det['reason_id']}?"
+
+    #saving
+    save_on_db(order, reason, res, tipo)
 
     return {
         "content": f"{config.INFOS['reclamacao']['role']} | **Nova reclamação cadastrada!** `{id}`\n**Motivo:** {tipo} ({reason})\n{datetime.fromisoformat(det['date_created']).strftime('%d/%m/%Y %H:%M')}\n",

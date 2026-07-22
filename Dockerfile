@@ -2,7 +2,7 @@
 FROM python:3.11-slim
 
 # Defina diretório de trabalho no container
-WORKDIR /home/rillis/docker/ml-jrf-new
+WORKDIR /home/rillis/ml-jrf-api
 
 # Copie apenas os arquivos essenciais
 COPY requirements.txt ./

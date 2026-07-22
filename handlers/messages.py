@@ -1,6 +1,6 @@
 
 from cfg import config
-from utils import discord, ml, lib
+from utils import discord, ml, lib, db
 
 from datetime import datetime
 
@@ -15,6 +15,12 @@ def handle(data):
         wh.send(discord_format(res))
     return {'Status': 'OK'}, 200
 
+def save_on_db(message, res_id, user):
+    with db.DBConnection() as conn:
+        sql = "INSERT INTO messages (message, post_time, res_id, user) VALUES (%s, now(), %s, %s)"
+        val = (str(message), str(res_id), str(user))
+        conn.execute(sql, val=val)
+
 def discord_format(res):
     det = ml.get(f'https://api.mercadolibre.com/messages/{res}?tag=post_sale') # detalhado
 
@@ -25,6 +31,9 @@ def discord_format(res):
 
     user = ml.get(f"https://api.mercadolibre.com/users/{msg['from']['user_id']}")
     res_id = msg['message_resources'][0]['id']
+
+    #saving
+    save_on_db(msg['text'], res_id, user['nickname'])
 
     return {
         "content": f"{config.INFOS['mensagem']['role']} | **Nova Mensagem!** `{msg['id']}`\n{datetime.fromisoformat(msg['message_date']['received']).strftime('%d/%m/%Y %H:%M')}",

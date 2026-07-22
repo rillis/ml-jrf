@@ -1,6 +1,6 @@
 
 from cfg import config
-from utils import discord, ml, lib
+from utils import discord, ml, lib, db
 
 from datetime import datetime
 
@@ -15,6 +15,12 @@ def handle(data):
         wh.send(discord_format(res))
     return {'Status': 'OK'}, 200
 
+def save_on_db(content, item_id, res_id, sku):
+    with db.DBConnection() as conn:
+        sql = "INSERT INTO orders_v2 (content, item_id, post_time, res_id, sku) VALUES (%s, %s, now(), %s, %s)"
+        val = (str(content), str(item_id), str(res_id), float(sku))
+        conn.execute(sql, val=val)
+
 def discord_format(res):
     det = ml.get(f'https://api.mercadolibre.com{res}?api_version=4') #detalhado
     item = ml.get(f'https://api.mercadolibre.com/items/{det["item_id"]}') #item
@@ -27,6 +33,9 @@ def discord_format(res):
         if att['id'] == 'SELLER_SKU':
             sku = att['value_name']
             break
+
+    #saving
+    save_on_db(det['text'], item['id'], res, sku)
     
     return {
         "content": f"{config.INFOS['pergunta']['role']} | **Nova pergunta!** `{det['id']}`\n{datetime.fromisoformat(det['date_created']).strftime('%d/%m/%Y %H:%M')}",

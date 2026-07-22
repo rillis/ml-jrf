@@ -1,9 +1,9 @@
 services:
-  ml-jrf-new:
+  ml-jrf:
     build: .
-    container_name: ml-jrf-new
+    container_name: ml-jrf
     restart: unless-stopped
     ports:
       - "52003:80"
     volumes:
-      - .:/home/rillis/docker/ml-jrf-new
+      - .:/home/rillis/ml-jrf-api

@@ -28,7 +28,7 @@ def block_suspicious_requests():
     ua = request.headers.get('User-Agent', '').lower()
     if 'curl' in ua or 'wget' in ua:
         logging.info(f"Bloqueado User-Agent suspeito: {ua} de {request.remote_addr}")
-
+        abort(403)
 
 @app.route("/", methods=["POST"])
 def home():

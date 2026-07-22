@@ -14,10 +14,11 @@ def handle(req):
         if data.get('topic', '-') == 'items':
             return {'Status': 'Not Supported'}, 400
 
-        with db.DBConnection() as conn:
-            sql = "INSERT INTO posts (engine, post_time, url, content) VALUES (%s, now(), %s, %s)"
-            val = (config.CONTA, str(dict(req.headers)['Host']), str(data).replace("'", "'"))
-            conn.execute(sql, val=val)
+        if data.get('debug', False) == False:
+            with db.DBConnection() as conn:
+                sql = "INSERT INTO posts (engine, post_time, url, content, topic, resource) VALUES (%s, now(), %s, %s, %s, %s)"
+                val = (config.CONTA, str(dict(req.headers)['Host']), str(data).replace("'", "'"), data.get('topic', '-'), data.get('resource', '-'))
+                conn.execute(sql, val=val)
 
         if not data or 'resource' not in data.keys():
             print(f'Request rejeitado, sem resource ou None')
