@@ -22,7 +22,7 @@ class DBConnection:
             if config.DEBUG: print(f'MYSQL ({self.id}): Conexão feita com {host}:{port}')
         except mysql.connector.Error as err:
             self.conn = None
-            print("Erro na conexão:", err)
+            config.print_error(f'Connector Error:', err)
 
     def __enter__(self):
         return self

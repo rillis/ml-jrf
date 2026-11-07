@@ -61,7 +61,7 @@ def discord_format(res_ori, data):
         else: reason = f"{det['reason_id']}?"
 
     #saving
-    save_on_db(order, reason, res, tipo)
+    save_on_db(order, reason, res_id, tipo)
 
     return {
         "content": f"{config.INFOS['reclamacao']['role']} | **Nova reclamação cadastrada!** `{id}`\n**Motivo:** {tipo} ({reason})\n{datetime.fromisoformat(det['date_created']).strftime('%d/%m/%Y %H:%M')}\n",

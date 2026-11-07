@@ -17,8 +17,8 @@ def handle(data):
 
 def save_on_db(content, item_id, res_id, sku):
     with db.DBConnection() as conn:
-        sql = "INSERT INTO orders_v2 (content, item_id, post_time, res_id, sku) VALUES (%s, %s, now(), %s, %s)"
-        val = (str(content), str(item_id), str(res_id), float(sku))
+        sql = "INSERT INTO questions (content, item_id, post_time, res_id, sku) VALUES (%s, %s, now(), %s, %s)"
+        val = (str(content), str(item_id), str(res_id), str(sku))
         conn.execute(sql, val=val)
 
 def discord_format(res):

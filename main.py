@@ -36,17 +36,18 @@ def home():
         id = str(uuid.uuid4())[:8]
         if config.DEBUG: print(f'{config.BLUE}[{datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%d %H:%M:%S")}] POST [{id}] RECEBIDO -------------------{config.RESET}')
         response = main_handler.handle(request)
-        if config.DEBUG: print(f'{config.GREEN if response[0]=="OK" else config.RED}Result: {response[1]} - {response[0]}{config.RESET}')
+        if config.DEBUG: print(f'{config.GREEN if response[0].get("Status", "")=="OK" else config.RED}Result: {response[1]} - {response[0]}{config.RESET}')
         if config.DEBUG: print(f'{config.BLUE}[{datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%d %H:%M:%S")}] POST [{id}] FIM TRATAMENTO -------------{config.RESET}')
         return response
     return {"status": "Wrong method"}, 405
 
 if __name__ == "__main__":
-    print('Waiting 5s to start') #Importante pois está com restart: unless-stopped
+    print(f'{config.BRIGHT_MAGENTA}------------------------------------------------------------------{config.RESET}')
+    print(f'{config.BRIGHT_MAGENTA}Waiting 5s to start{config.RESET}') #Importante pois está com restart: unless-stopped
     time.sleep(5)
 
-    print(f'Starting on {config.IP}:{config.PORT}')
+    print(f'{config.BRIGHT_MAGENTA}Starting on {config.IP}:{config.PORT}{config.RESET}')
     test_api = ml.get('https://api.mercadolibre.com/users/me', config.APP_ID)
-    print(f'[{datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%d %H:%M:%S")}] OK! {test_api["nickname"]}. APP: {config.APP_ID}')
+    print(f'{config.BRIGHT_MAGENTA}[{datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%d %H:%M:%S")}] OK! {test_api["nickname"]}. APP: {config.APP_ID}{config.RESET}')
 
     app.run(host=config.IP, port=config.PORT, debug=config.DEBUG)

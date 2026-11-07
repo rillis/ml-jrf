@@ -36,8 +36,8 @@ def handle(req):
         
         debug.handle(data)
         return {"status": "Wrong pattern"}, 400
-    except ValueError:
-        print(f'Request rejeitado, não é json')
+    except ValueError as error:
+        config.print_error(f'ValueError:', error)
         debug.handle(data)
         return {'Status': 'Not JSON'}, 400
 

@@ -1,5 +1,16 @@
 from cfg import private
 
+from datetime import datetime
+from zoneinfo import ZoneInfo
+
+def print_error(pre_msg, err):
+    print(f'{RED}---------------------------[{datetime.now(ZoneInfo("America/Sao_Paulo")).strftime("%Y-%m-%d %H:%M:%S")}]---------------------------{RESET}')
+    print(f'{RED}ERRO!!!{RESET}')
+    print(f'{RED}{pre_msg}{RESET}')
+    print(f'{RED}{err}{RESET}')
+    print(f'{RED}---------------------------------------------------------------------------{RESET}')
+
+
 # Debug mode
 DEBUG = True
 
@@ -32,7 +43,7 @@ WEBHOOK_URL_DEBUG = private.WEBHOOK_URL_DEBUG
 MAX_FIELD_SIZE = 1024
 
 # message creators
-_URLBASE_AVATARS = 'https://estoque.rillis.com.br/imgs/'
+_URLBASE_AVATARS = 'https://dash.rillis.com.br/imgs/'
 
 # dicts
 INFOS = {
@@ -90,6 +101,7 @@ EMOJI_SHIP = {
 POST_PURCHASE_DICT = {
         'mediations': 'Reclamação entre comprador e vendedor.',
         'return': 'Devolução do produto.',
+        'returns': 'Devolução do produto.',
         'fulfillment': 'Reclamação entre comprador e Mercado Livre com origem de compra com envio full.',
         'ml_case': 'Cancelamento da compra por parte do comprador devido a envio demorado.',
         'cancel_sale': 'Cancelamento da compra por parte do vendedor.',
