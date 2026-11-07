@@ -105,3 +105,60 @@ def test_payload_dict_tambem_funciona(monkeypatch):
     with_handler(monkeypatch, lambda d, j, ml: got.append(d) or Outcome.skip('ok'))
     Worker(queue=FakeQueue([job(payload={'resource': '/orders/1'})]), ml=object(), discord=FakeDiscord()).run_once()
     assert got == [{'resource': '/orders/1'}]
+
+
+# ---------- token recusado ----------
+
+class Clock:
+    def __init__(self):
+        self.t = 1000.0
+
+    def __call__(self):
+        return self.t
+
+
+def test_token_recusado_pausa_avisa_uma_vez_e_retoma(monkeypatch, tmp_path):
+    from app.ml import TokenInvalid
+    flag = tmp_path / 'token-invalid'
+    monkeypatch.setattr(config, 'TOKEN_INVALID_FILE', str(flag))
+    state = {'down': True}
+
+    def handler(d, j, ml):
+        if state['down']:
+            raise TokenInvalid(400, 'oauth', 'invalid_grant')
+        return Outcome(payload={'content': 'venda'})
+    with_handler(monkeypatch, handler)
+    clock, d = Clock(), FakeDiscord()
+    q = FakeQueue([job(id=1, attempts=2), job(id=2)])
+    w = Worker(queue=q, ml=object(), discord=d, now=clock)
+
+    w.run_once()
+    # o 1º job volta para a fila sem gastar tentativa; o 2º nem é tocado
+    assert ('retry', 1, 2, config.TOKEN_PAUSE_SECONDS) in q.events
+    assert ('claim', 2) not in q.events
+    assert len(d.sent) == 1 and 'recusado' in d.sent[0][1]['content'] and flag.exists()
+
+    # pausado: não busca jobs
+    q.jobs = [job(id=1)]
+    assert w.run_once() == 0 and ('claim', 1) not in q.events[2:]
+
+    # depois da pausa, falha de novo: não repete o alerta
+    clock.t += config.TOKEN_PAUSE_SECONDS + 1
+    w.run_once()
+    assert len(d.sent) == 1
+
+    # token volta: alerta de retomada e flag removido
+    clock.t += config.TOKEN_PAUSE_SECONDS + 1
+    state['down'] = False
+    q.jobs = [job(id=1)]
+    w.run_once()
+    assert [c for c, _ in d.sent] == ['debug', 'main', 'debug']  # o alerta que provou a volta, depois o aviso
+    assert 'voltou' in d.sent[2][1]['content'] and not flag.exists()
+
+
+def test_heartbeat_a_cada_job(monkeypatch, tmp_path):
+    hb = tmp_path / 'hb'
+    monkeypatch.setattr(config, 'HEARTBEAT_FILE', str(hb))
+    with_handler(monkeypatch, lambda d, j, ml: Outcome.skip('ok'))
+    Worker(queue=FakeQueue([job()]), ml=object(), discord=FakeDiscord()).run_once()
+    assert hb.exists()

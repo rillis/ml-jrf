@@ -128,3 +128,15 @@ def fail(job_id, attempts, error):
 
 def stats():
     return {r['status']: r['n'] for r in db.fetch(f'SELECT status, COUNT(*) n FROM `{T}` GROUP BY status')}
+
+
+def health_stats():
+    """Resumo para o /health: pendentes, falhas e quantos já deviam ter saído há mais de 5 min."""
+    r = db.fetch(f"""
+        SELECT
+          COALESCE(SUM(status = 'pending'), 0) AS pendentes,
+          COALESCE(SUM(status = 'processing'), 0) AS processando,
+          COALESCE(SUM(status = 'failed'), 0) AS falhas,
+          COALESCE(SUM(status IN ('pending','processing') AND next_attempt_at < NOW() - INTERVAL 5 MINUTE), 0) AS atrasados
+        FROM `{T}` WHERE status IN ('pending','processing','failed')""")[0]
+    return {k: int(v) for k, v in r.items()}

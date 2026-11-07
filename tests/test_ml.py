@@ -114,3 +114,24 @@ def test_log_nao_mostra_token(tokens, caplog):
     finally:
         logger.propagate = False
     assert 'SEGREDO' not in caplog.text and '1234' in caplog.text
+
+
+def test_refresh_recusado_vira_token_invalid(tokens):
+    from app.ml import TokenInvalid
+    s = Session([Resp(401)], post=Resp(400, {'error': 'invalid_grant'}))
+    with pytest.raises(TokenInvalid):
+        client(tokens, s).get('/x')
+
+
+def test_refresh_com_erro_do_servidor_nao_e_token_invalid(tokens):
+    from app.ml import TokenInvalid
+    s = Session([Resp(401)], post=Resp(500))
+    with pytest.raises(MLError) as exc:
+        client(tokens, s).get('/x')
+    assert not isinstance(exc.value, TokenInvalid)
+
+
+def test_authorize_grava_tokens(tokens):
+    s = Session([], post=Resp(200, {'access_token': 'A', 'refresh_token': 'R'}))
+    client(tokens, s).authorize('CODE', 'https://exemplo/cb')
+    assert json.loads(tokens.read_text()) == {'token': 'A', 'refresh_token': 'R'}

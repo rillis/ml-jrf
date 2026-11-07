@@ -25,6 +25,10 @@ class MLNotFound(MLError):
     pass
 
 
+class TokenInvalid(MLError):
+    """O ML recusou o refresh token: só volta a funcionar reautorizando o app."""
+
+
 class TokenStore:
     """tokens.json com trava entre processos e escrita atômica."""
 
@@ -100,6 +104,8 @@ class MLClient:
                 },
                 timeout=10,
             )
+            if resp.status_code in (400, 401, 403):  # invalid_grant: refresh token expirado ou revogado
+                raise TokenInvalid(resp.status_code, config.ML_TOKEN_URL, resp.text)
             if resp.status_code >= 400:
                 raise MLError(resp.status_code, config.ML_TOKEN_URL, resp.text)
             js = resp.json()
@@ -149,6 +155,30 @@ class MLClient:
             if status == 404:
                 raise MLNotFound(status, url, resp.text)
             raise MLError(status, url, resp.text)
+
+    def authorize(self, code, redirect_uri):
+        """Troca o code da tela de autorização do ML por tokens novos."""
+        with self.tokens._locked():
+            resp = self.session.post(
+                config.ML_TOKEN_URL,
+                headers={'accept': 'application/json', 'content-type': 'application/x-www-form-urlencoded'},
+                data={
+                    'grant_type': 'authorization_code',
+                    'client_id': str(self.app_id),
+                    'client_secret': str(self.secret),
+                    'code': code,
+                    'redirect_uri': redirect_uri,
+                },
+                timeout=10,
+            )
+            if resp.status_code >= 400:
+                raise MLError(resp.status_code, config.ML_TOKEN_URL, resp.text)
+            js = resp.json()
+            tokens = self.tokens.read()
+            tokens['token'] = js['access_token']
+            tokens['refresh_token'] = js['refresh_token']
+            self.tokens.write(tokens)
+            return js
 
     def get_or_none(self, path, params=None):
         """Para dados opcionais: 404 vira None em vez de exceção."""

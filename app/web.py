@@ -91,18 +91,25 @@ def create_app(queue=default_queue, save_post_fn=None):
     @app.get('/health')
     def health():
         problems = []
+        body = {}
         try:
-            db.fetch('SELECT 1 AS ok')
+            body['fila'] = queue.health_stats()
+            if body['fila']['atrasados'] and not os.path.exists(config.TOKEN_INVALID_FILE):
+                problems.append(f"{body['fila']['atrasados']} notificação(ões) esperando há mais de 5 min")
         except Exception as err:  # noqa: BLE001
             problems.append(f'db: {err}')
         try:
             age = time.time() - os.path.getmtime(config.HEARTBEAT_FILE)
+            body['worker_heartbeat_s'] = round(age)
             if age > config.HEARTBEAT_MAX_AGE:
                 problems.append(f'worker parado há {age:.0f}s')
         except OSError:
             problems.append('worker sem heartbeat')
+        body['token_ok'] = not os.path.exists(config.TOKEN_INVALID_FILE)
+        if not body['token_ok']:
+            problems.append('token do ML recusado: reautorize o app (fila pausada)')
         if problems:
-            return {'status': 'unhealthy', 'problems': problems}, 503
-        return {'status': 'ok'}, 200
+            return {'status': 'unhealthy', 'problems': problems, **body}, 503
+        return {'status': 'ok', **body}, 200
 
     return app

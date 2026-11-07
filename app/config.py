@@ -53,7 +53,11 @@ WEBHOOK_URL_DEBUG = _env('DISCORD_WEBHOOK_URL_DEBUG', '')
 WORKER_POLL_SECONDS = _env('WORKER_POLL_SECONDS', 2, float)
 RETRY_BACKOFF = [30, 120, 600, 1800, 3600]  # segundos de espera após a 1ª..5ª falha
 HEARTBEAT_FILE = _env('HEARTBEAT_FILE', '/tmp/ml-jrf-worker.heartbeat')
-HEARTBEAT_MAX_AGE = 120
+HEARTBEAT_MAX_AGE = 300  # /health fica unhealthy (um job lento com a API do ML instável leva minutos)
+# O vigia do entrypoint.sh reinicia o container com heartbeat mais velho que WATCHDOG_MAX_AGE (padrão 600s)
+TOKEN_PAUSE_SECONDS = 300  # com token inválido, a fila pausa e testa de novo a cada 5 min
+TOKEN_INVALID_FILE = _env('TOKEN_INVALID_FILE', '/tmp/ml-jrf-token-invalid')
+ML_REDIRECT_URI = _env('ML_REDIRECT_URI', '')
 LATE_NOTICE_HOURS = 24
 TIMEZONE = 'America/Sao_Paulo'
 

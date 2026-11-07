@@ -97,3 +97,49 @@ def test_falha_no_posts_nao_impede_fila(no_db):
 def test_get_raiz_405(setup):
     client, _, _ = setup
     assert client.get('/').status_code == 405
+
+
+class HealthQueue(FakeQueue):
+    def __init__(self, stats):
+        super().__init__()
+        self.stats = stats
+
+    def health_stats(self):
+        return self.stats
+
+
+def _health(monkeypatch, tmp_path, stats, heartbeat=True, token_down=False):
+    from app import config
+    hb, flag = tmp_path / 'hb', tmp_path / 'flag'
+    if heartbeat:
+        hb.touch()
+    if token_down:
+        flag.touch()
+    monkeypatch.setattr(config, 'HEARTBEAT_FILE', str(hb))
+    monkeypatch.setattr(config, 'TOKEN_INVALID_FILE', str(flag))
+    app = create_app(queue=HealthQueue(stats), save_post_fn=lambda d: None)
+    return app.test_client().get('/health')
+
+
+OK_STATS = {'pendentes': 0, 'processando': 0, 'falhas': 1, 'atrasados': 0}
+
+
+def test_health_ok_com_resumo(monkeypatch, tmp_path):
+    r = _health(monkeypatch, tmp_path, OK_STATS)
+    assert r.status_code == 200 and r.json['fila']['falhas'] == 1 and r.json['token_ok'] is True
+
+
+def test_health_fila_atrasada(monkeypatch, tmp_path):
+    r = _health(monkeypatch, tmp_path, {**OK_STATS, 'atrasados': 3})
+    assert r.status_code == 503 and 'esperando' in r.json['problems'][0]
+
+
+def test_health_token_recusado(monkeypatch, tmp_path):
+    r = _health(monkeypatch, tmp_path, {**OK_STATS, 'atrasados': 3}, token_down=True)
+    assert r.status_code == 503 and r.json['token_ok'] is False
+    assert len(r.json['problems']) == 1  # atraso por causa do token não conta duas vezes
+
+
+def test_health_sem_heartbeat(monkeypatch, tmp_path):
+    r = _health(monkeypatch, tmp_path, OK_STATS, heartbeat=False)
+    assert r.status_code == 503 and 'heartbeat' in r.json['problems'][0]

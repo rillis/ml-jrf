@@ -8,7 +8,19 @@ Recebe as notificações (webhooks) do Mercado Livre em `https://api1.rillis.com
 2. **worker** (`app/worker.py`): pega os pendentes, consulta a API do ML, envia ao Discord e só então marca como `done`. Depois grava o histórico (`orders_v2`, `messages`, `questions`, `post_purchase`).
    - Falhou? Tenta de novo em 30s, 2min, 10min, 30min e 1h. Se todas falharem, o job vira `failed` e sai um aviso no webhook de debug.
    - Deduplicação: `dedup_key` UNIQUE (o `resource`). Pedidos, mensagens e perguntas alertam uma vez só. Reclamações voltam para a fila a cada notificação e só alertam quando o número de mensagens muda (`alert_key`).
-3. Os dois processos rodam no mesmo container (`entrypoint.sh`). Se um morrer, o container sai e o Docker reinicia. O healthcheck (`GET /health`) confere o MySQL e o heartbeat do worker.
+3. Os dois processos rodam no mesmo container (`entrypoint.sh`). Se um morrer, o container sai e o Docker reinicia. Um vigia no `entrypoint.sh` também derruba o container se o worker ficar mais de 10 min sem heartbeat (`WATCHDOG_MAX_AGE`), porque o Docker não reinicia container só por estar `unhealthy`.
+4. `GET /health` mostra a fila (pendentes, falhas, atrasados), o heartbeat do worker e se o token está OK. Fica `503` se o banco cair, o worker parar, a fila atrasar mais de 5 min ou o token for recusado.
+
+## Token do ML recusado
+
+Se o ML recusar o refresh token (revogado ou expirado), a fila **pausa**: as notificações ficam guardadas, sem gastar tentativas. Sai **um** aviso no canal de debug com o passo a passo, e outro quando voltar. Para reautorizar:
+
+```bash
+docker exec ml-jrf python -m scripts.authorize --url            # mostra a URL de autorização
+docker exec ml-jrf python -m scripts.authorize --code <code> --redirect-uri <uri do app>
+```
+
+Com `ML_REDIRECT_URI` no `.env`, o `--redirect-uri` pode ser omitido. O worker retoma sozinho em até 5 min.
 
 ## Deploy
 

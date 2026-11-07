@@ -10,18 +10,21 @@ from app import queue as default_queue
 from app.discord import DiscordSender
 from app.handlers import HANDLERS
 from app.handlers import debug as debug_handler
-from app.ml import MLClient
+from app.ml import MLClient, TokenInvalid
 
 _logger = log.get('worker')
 
 
 class Worker:
-    def __init__(self, queue=default_queue, ml=None, discord=None, sleep=time.sleep):
+    def __init__(self, queue=default_queue, ml=None, discord=None, sleep=time.sleep, now=time.time):
         self.queue = queue
         self.ml = ml or MLClient()
         self.discord = discord or DiscordSender()
         self._sleep = sleep
+        self._now = now
         self.running = True
+        self.token_down_since = None  # quando o refresh token começou a ser recusado
+        self.paused_until = 0.0
 
     def process(self, job):
         """Processa um job já marcado como processing."""
@@ -36,10 +39,14 @@ class Worker:
             outcome = handler(data, job, self.ml)
             if outcome.payload is not None:
                 self.discord.send(outcome.payload, outcome.channel)
+        except TokenInvalid as err:
+            self._token_invalid(job, err, rid)
+            return 'paused'
         except Exception as err:  # noqa: BLE001 — qualquer erro vira nova tentativa
             self._handle_failure(job, err, rid)
             return 'error'
 
+        self._token_ok()
         status = 'done' if outcome.payload is not None else 'skipped'
         self.queue.finish(job['id'], status, alert_key=outcome.alert_key, note=outcome.note)
         if status == 'done':
@@ -68,13 +75,54 @@ class Worker:
         except Exception as alert_err:  # noqa: BLE001
             _logger.error(f'[{rid}] Não consegui avisar no canal de debug: {alert_err}')
 
+    def _token_invalid(self, job, err, rid):
+        """Refresh token recusado: pausa a fila sem gastar tentativas e avisa uma vez só."""
+        self.queue.retry_later(job['id'], int(job.get('attempts') or 0), config.TOKEN_PAUSE_SECONDS, err)
+        self.paused_until = self._now() + config.TOKEN_PAUSE_SECONDS
+        _logger.error(f'[{rid}] Token do ML recusado; fila pausada por {config.TOKEN_PAUSE_SECONDS}s: {err}')
+        if self.token_down_since is not None:
+            return
+        self.token_down_since = self._now()
+        self._set_token_flag(True)
+        try:
+            self.discord.send(debug_handler.token_invalid_payload(err), 'debug')
+        except Exception as alert_err:  # noqa: BLE001
+            _logger.error(f'[{rid}] Não consegui avisar no canal de debug: {alert_err}')
+
+    def _token_ok(self):
+        if self.token_down_since is None:
+            return
+        minutes = (self._now() - self.token_down_since) / 60
+        self.token_down_since = None
+        self._set_token_flag(False)
+        _logger.info(f'Token do ML voltou a funcionar após {minutes:.0f} min; fila retomada', extra={'color': log.GREEN})
+        try:
+            self.discord.send(debug_handler.token_ok_payload(minutes), 'debug')
+        except Exception as alert_err:  # noqa: BLE001
+            _logger.error(f'Não consegui avisar no canal de debug: {alert_err}')
+
+    @staticmethod
+    def _set_token_flag(down):
+        """Marca para o /health (outro processo) que o token está inválido."""
+        path = Path(config.TOKEN_INVALID_FILE)
+        try:
+            if down:
+                path.touch()
+            elif path.exists():
+                path.unlink()
+        except OSError as err:
+            _logger.warning(f'Não consegui atualizar {path}: {err}')
+
     def run_once(self):
+        if self._now() < self.paused_until:
+            return 0
         jobs = self.queue.due()
         for job in jobs:
             if not self.running:
                 break
-            if self.queue.claim(job['id']):
-                self.process(job)
+            self.heartbeat()  # um job pode levar minutos com a API do ML instável
+            if self.queue.claim(job['id']) and self.process(job) == 'paused':
+                break  # os demais ficam pendentes até o token voltar
         return len(jobs)
 
     def heartbeat(self):
@@ -95,6 +143,7 @@ class Worker:
         signal.signal(signal.SIGINT, self._stop)
         _logger.info(f'Worker iniciado (fila {config.QUEUE_TABLE}{", ENSAIO" if config.ENSAIO else ""})',
                      extra={'color': log.MAGENTA})
+        self._set_token_flag(False)  # sinal de uma execução anterior não vale mais
         recovered = self.queue.recover_stuck()
         if recovered:
             _logger.warning(f'{recovered} job(s) presos em processing voltaram para pending')
