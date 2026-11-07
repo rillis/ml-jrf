@@ -44,6 +44,8 @@ def create_app(queue=default_queue, save_post_fn=None):
 
     @app.after_request
     def _access(resp):
+        if request.path == '/health' and resp.status_code == 200:
+            return resp  # healthcheck a cada 30s só poluiria o security.log
         ms = (time.monotonic() - g.get('t0', time.monotonic())) * 1000
         _security.info(f'{client_ip()} "{request.method} {request.path}" {resp.status_code} {ms:.0f}ms '
                        f'UA={request.headers.get("User-Agent", "-")!r}')
