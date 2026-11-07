@@ -51,13 +51,15 @@ def enqueue(data, handler, is_debug=False, recheck=False):
     key = dedup_key(data, handler, is_debug)
     payload = json.dumps(data, ensure_ascii=False)
     if recheck:
+        # colunas qualificadas: o alias "new" também tem status/payload e deixaria ambíguo
+        s = f'`{T}`.status'
         update = f"""
-          attempts = IF(status IN {DONE_STATES}, 0, attempts),
-          next_attempt_at = IF(status IN {DONE_STATES}, NOW(), next_attempt_at),
-          last_error = IF(status IN {DONE_STATES}, NULL, last_error),
-          dirty = IF(status = 'processing', 1, dirty),
+          attempts = IF({s} IN {DONE_STATES}, 0, `{T}`.attempts),
+          next_attempt_at = IF({s} IN {DONE_STATES}, NOW(), `{T}`.next_attempt_at),
+          last_error = IF({s} IN {DONE_STATES}, NULL, `{T}`.last_error),
+          dirty = IF({s} = 'processing', 1, `{T}`.dirty),
           payload = new.payload,
-          status = IF(status IN {DONE_STATES}, 'pending', status)
+          status = IF({s} IN {DONE_STATES}, 'pending', {s})
         """
     else:
         update = 'id = id'
