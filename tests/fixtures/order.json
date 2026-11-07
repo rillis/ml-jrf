@@ -1,0 +1,20 @@
+{
+  "id": 2000019331667194,
+  "status": "paid",
+  "date_created": "2026-11-04T08:28:55.000-04:00",
+  "total_amount": 33.1,
+  "shipping": {
+    "id": 48424933128
+  },
+  "order_items": [
+    {
+      "item": {
+        "id": "MLB5691583516",
+        "title": "Saca Filtro De Ar Condicionado E Mang. Combustível Ka-075",
+        "seller_sku": "KA-075"
+      },
+      "quantity": 1,
+      "unit_price": 33.1
+    }
+  ]
+}

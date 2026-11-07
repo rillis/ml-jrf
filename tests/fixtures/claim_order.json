@@ -1,0 +1,19 @@
+{
+  "id": 2000018893286658,
+  "date_created": "2026-10-09T14:24:35.000-04:00",
+  "total_amount": 43.52,
+  "shipping": {
+    "id": 48217465659
+  },
+  "order_items": [
+    {
+      "item": {
+        "id": "MLB5397128650",
+        "title": "Ferramenta Câmbio Gm 103mm Porca Do Diferencial Flange Kf176",
+        "seller_sku": "KF-176"
+      },
+      "quantity": 1,
+      "unit_price": 43.52
+    }
+  ]
+}

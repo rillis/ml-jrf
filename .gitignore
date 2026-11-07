@@ -1,7 +1,7 @@
-/cfg/private.py
 __pycache__/
 *.py[cod]
-/*.txt
-*.json
-*.log
-*.sh
+.pytest_cache/
+.env
+/data/
+/logs/*
+!/logs/empty

@@ -1,22 +1,26 @@
-# Use uma imagem base do Python
 FROM python:3.11-slim
 
-# Defina diretório de trabalho no container
-WORKDIR /home/rillis/ml-jrf-api
+ENV PYTHONUNBUFFERED=1 \
+    PYTHONDONTWRITEBYTECODE=1 \
+    TZ=America/Sao_Paulo
 
-# Copie apenas os arquivos essenciais
+WORKDIR /app
+
 COPY requirements.txt ./
-
-# Instale as dependências
 RUN pip install --no-cache-dir -r requirements.txt
 
-# Copie todo o conteúdo da pasta ml para dentro do container
-COPY . .
+RUN useradd --uid 1000 --create-home app \
+    && mkdir -p /app/data /app/logs \
+    && chown app:app /app/data /app/logs
 
-# Exponha a porta
-EXPOSE 80
+COPY app ./app
+COPY scripts ./scripts
+COPY gunicorn.conf.py entrypoint.sh ./
 
-ENV PYTHONUNBUFFERED=1
+USER app
+EXPOSE 8000
 
-# Comando para executar o script
-CMD ["python", "main.py"]
+HEALTHCHECK --interval=30s --timeout=5s --start-period=30s --retries=3 \
+    CMD python -c "import urllib.request; urllib.request.urlopen('http://127.0.0.1:8000/health', timeout=4)" || exit 1
+
+CMD ["bash", "entrypoint.sh"]

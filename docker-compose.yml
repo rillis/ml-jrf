@@ -1,9 +1,13 @@
 services:
   ml-jrf:
     build: .
+    image: ml-jrf:latest
     container_name: ml-jrf
     restart: unless-stopped
+    init: true
+    env_file: .env
     ports:
-      - "52003:80"
+      - "52003:8000"
     volumes:
-      - .:/home/rillis/ml-jrf-api
+      - ./data:/app/data
+      - ./logs:/app/logs

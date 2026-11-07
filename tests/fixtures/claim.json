@@ -1,0 +1,27 @@
+{
+  "id": 5601110705,
+  "resource": "order",
+  "resource_id": 2000018893286658,
+  "type": "mediations",
+  "reason_id": "PDD9967",
+  "date_created": "2026-10-26T20:39:26.000-04:00",
+  "stage": "dispute",
+  "status": "closed",
+  "players": [
+    {
+      "role": "complainant",
+      "type": "buyer",
+      "user_id": 222222
+    },
+    {
+      "role": "respondent",
+      "type": "seller",
+      "user_id": 111111
+    },
+    {
+      "role": "mediator",
+      "type": "internal",
+      "user_id": 46622406
+    }
+  ]
+}
