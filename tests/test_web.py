@@ -143,3 +143,74 @@ def test_health_token_recusado(monkeypatch, tmp_path):
 def test_health_sem_heartbeat(monkeypatch, tmp_path):
     r = _health(monkeypatch, tmp_path, OK_STATS, heartbeat=False)
     assert r.status_code == 503 and 'heartbeat' in r.json['problems'][0]
+
+
+class PingML:
+    """MLClient falso: get('/users/me') pode trocar o token (como numa renovação) ou falhar."""
+
+    def __init__(self, tmp_path, renew=False, error=None):
+        from app.ml import TokenStore
+        self.tokens = TokenStore(tmp_path / 'tokens.json')
+        self.tokens.write({'token': 'velho', 'refresh_token': 'r'})
+        self.renew = renew
+        self.error = error
+        self.calls = 0
+
+    def get(self, path, params=None):
+        self.calls += 1
+        if self.error:
+            raise self.error
+        if self.renew:
+            self.tokens.write({'token': 'novo', 'refresh_token': 'r2'})
+        return {'nickname': 'LOJA'}
+
+
+def _ping_client(ml, clock=None):
+    from app.web import TokenPing
+    ping = TokenPing(ml=ml, now=clock or (lambda: 0.0))
+    return create_app(queue=FakeQueue(), save_post_fn=lambda d: None, token_ping=ping).test_client()
+
+
+def test_ping_token_ok(no_db, tmp_path):
+    ml = PingML(tmp_path)
+    r = _ping_client(ml).post('/token/ping')
+    assert r.status_code == 200 and r.json == {'status': 'ok', 'renovado': False, 'cache': False}
+
+
+def test_ping_renova(no_db, tmp_path):
+    ml = PingML(tmp_path, renew=True)
+    r = _ping_client(ml).get('/token/ping')
+    assert r.status_code == 200 and r.json['renovado'] is True
+
+
+def test_ping_token_invalido_503(no_db, tmp_path):
+    from app.ml import TokenInvalid
+    ml = PingML(tmp_path, error=TokenInvalid(400, 'oauth', 'invalid_grant'))
+    r = _ping_client(ml).post('/token/ping')
+    assert r.status_code == 503 and r.json['status'] == 'token_invalido'
+
+
+def test_ping_erro_502_sem_cache(no_db, tmp_path):
+    from app.ml import MLError
+    ml = PingML(tmp_path, error=MLError('rede', '/users/me', 'timeout'))
+    client = _ping_client(ml)
+    assert client.post('/token/ping').status_code == 502
+    assert client.post('/token/ping').status_code == 502
+    assert ml.calls == 2
+
+
+def test_ping_reaproveita_resultado(no_db, tmp_path):
+    t = [0.0]
+    ml = PingML(tmp_path)
+    client = _ping_client(ml, clock=lambda: t[0])
+    client.post('/token/ping')
+    r = client.post('/token/ping')
+    assert r.json['cache'] is True and ml.calls == 1
+    t[0] = 60.0
+    assert client.post('/token/ping').json['cache'] is False and ml.calls == 2
+
+
+def test_ping_pelo_tunel_404(no_db, tmp_path):
+    ml = PingML(tmp_path)
+    r = _ping_client(ml).post('/token/ping', headers={'CF-Connecting-IP': '1.2.3.4'})
+    assert r.status_code == 404 and ml.calls == 0

@@ -58,6 +58,7 @@ HEARTBEAT_MAX_AGE = 300  # /health fica unhealthy (um job lento com a API do ML 
 TOKEN_PAUSE_SECONDS = 300  # com token inválido, a fila pausa e testa de novo a cada 5 min
 TOKEN_INVALID_FILE = _env('TOKEN_INVALID_FILE', '/tmp/ml-jrf-token-invalid')
 ML_REDIRECT_URI = _env('ML_REDIRECT_URI', '')
+PING_CACHE_SECONDS = _env('PING_CACHE_SECONDS', 10, float)  # /token/ping reaproveita o resultado por esse tempo
 LATE_NOTICE_HOURS = 24
 TIMEZONE = 'America/Sao_Paulo'
 

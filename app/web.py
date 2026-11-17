@@ -1,6 +1,7 @@
 """Endpoint que recebe as notificações do Mercado Livre e só enfileira."""
 import json
 import os
+import threading
 import time
 
 from flask import Flask, g, request
@@ -8,6 +9,7 @@ from flask import Flask, g, request
 from app import config, db, log
 from app import queue as default_queue
 from app.handlers import RECHECK_HANDLERS, route
+from app.ml import MLClient, TokenInvalid
 
 _logger = log.get('web')
 _security = log.get('security')
@@ -33,10 +35,52 @@ def save_post(data):
     )
 
 
-def create_app(queue=default_queue, save_post_fn=None):
+class TokenPing:
+    """Confere o token com uma chamada leve ao ML; num 401 o MLClient renova.
+
+    Pings seguidos (vários serviços tomando 401 juntos) esperam o primeiro e
+    reaproveitam o resultado por PING_CACHE_SECONDS, sem chamar o ML de novo.
+    """
+
+    def __init__(self, ml=None, now=time.monotonic):
+        self._ml = ml
+        self._now = now
+        self._lock = threading.Lock()
+        self._last = None  # (quando, corpo, status)
+
+    @property
+    def ml(self):
+        if self._ml is None:
+            self._ml = MLClient()
+        return self._ml
+
+    def __call__(self):
+        with self._lock:
+            if self._last and self._now() - self._last[0] < config.PING_CACHE_SECONDS:
+                return {**self._last[1], 'cache': True}, self._last[2]
+            before = self.ml.tokens.read().get('token', '')
+            try:
+                self.ml.get('/users/me')
+            except TokenInvalid as err:
+                _logger.error(f'Ping: refresh token recusado pelo ML: {err}')
+                result = {'status': 'token_invalido', 'renovado': False}, 503
+            except Exception as err:  # noqa: BLE001
+                _logger.warning(f'Ping: não consegui conferir o token: {err}')
+                return {'status': 'erro', 'erro': str(err)[:300]}, 502  # erro passageiro não fica em cache
+            else:
+                renewed = self.ml.tokens.read().get('token', '') != before
+                if renewed:
+                    _logger.info('Ping: token renovado', extra={'color': log.GREEN})
+                result = {'status': 'ok', 'renovado': renewed}, 200
+            self._last = (self._now(), *result)
+            return {**result[0], 'cache': False}, result[1]
+
+
+def create_app(queue=default_queue, save_post_fn=None, token_ping=None):
     app = Flask(__name__)
     log.setup('web')
     save = save_post_fn or save_post
+    ping = token_ping or TokenPing()
 
     @app.before_request
     def _start():
@@ -87,6 +131,12 @@ def create_app(queue=default_queue, save_post_fn=None):
 
         _logger.info(f'POST {topic} {resource}: {result}', extra={'color': log.BLUE})
         return {'status': 'queued', 'result': result}, 200
+
+    @app.route('/token/ping', methods=['GET', 'POST'])
+    def token_ping_view():
+        if request.headers.get('CF-Connecting-IP'):  # só para a rede local, não pelo túnel
+            return {'status': 'not_found'}, 404
+        return ping()
 
     @app.get('/health')
     def health():

@@ -11,6 +11,25 @@ Recebe as notificações (webhooks) do Mercado Livre em `https://api1.rillis.com
 3. Os dois processos rodam no mesmo container (`entrypoint.sh`). Se um morrer, o container sai e o Docker reinicia. Um vigia no `entrypoint.sh` também derruba o container se o worker ficar mais de 10 min sem heartbeat (`WATCHDOG_MAX_AGE`), porque o Docker não reinicia container só por estar `unhealthy`.
 4. `GET /health` mostra a fila (pendentes, falhas, atrasados), o heartbeat do worker e se o token está OK. Fica `503` se o banco cair, o worker parar, a fila atrasar mais de 5 min ou o token for recusado.
 
+## Ping do token
+
+Outros serviços que usam o `tokens.json` do ml-jrf (como o ml-ia) podem pedir para ele conferir o token quando tomarem um 401, sem esperar o ml-jrf topar com o erro sozinho:
+
+```bash
+curl -X POST http://192.168.15.11:52003/token/ping
+```
+
+O ml-jrf faz um `GET /users/me` no ML. Se o token tiver vencido, renova e grava no `tokens.json`. Depois é só reler o arquivo. Também aceita `GET`.
+
+| Resposta | Significado |
+|---|---|
+| `200 {"status": "ok", "renovado": false}` | token válido, nada mudou |
+| `200 {"status": "ok", "renovado": true}` | token renovado: releia o `tokens.json` |
+| `503 {"status": "token_invalido"}` | refresh token recusado: precisa reautorizar (veja abaixo) |
+| `502 {"status": "erro", "erro": "..."}` | não deu para falar com o ML; tente de novo depois |
+
+Pings seguidos reaproveitam o último resultado por 10 s (`PING_CACHE_SECONDS`), indicado por `"cache": true`.
+
 ## Token do ML recusado
 
 Se o ML recusar o refresh token (revogado ou expirado), a fila **pausa**: as notificações ficam guardadas, sem gastar tentativas. Sai **um** aviso no canal de debug com o passo a passo, e outro quando voltar. Para reautorizar:
